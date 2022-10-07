@@ -22,20 +22,16 @@ use crate::{
     util_libc::{sys_fill_exact, Weak},
     Error,
 };
-use core::mem;
 
+// getrandom(2) was introduced in Solaris 11.3 for Illumos in 2015.
 #[cfg(target_os = "illumos")]
 type GetRandomFn = unsafe extern "C" fn(*mut u8, libc::size_t, libc::c_uint) -> libc::ssize_t;
 #[cfg(target_os = "solaris")]
 type GetRandomFn = unsafe extern "C" fn(*mut u8, libc::size_t, libc::c_uint) -> libc::c_int;
+static GETRANDOM: Weak<GetRandomFn> = unsafe { Weak::new("getrandom\0") };
 
 pub fn getrandom_inner(dest: &mut [u8]) -> Result<(), Error> {
-    // getrandom(2) was introduced in Solaris 11.3 for Illumos in 2015.
-    static GETRANDOM: Weak = unsafe { Weak::new("getrandom\0") };
-    if let Some(fptr) = GETRANDOM.ptr() {
-        let func: GetRandomFn = unsafe { mem::transmute(fptr) };
-        // 256 bytes is the lowest common denominator across all the Solaris
-        // derived platforms for atomically obtaining random data.
+    if let Some(func) = GETRANDOM.func() {
         for chunk in dest.chunks_mut(256) {
             sys_fill_exact(chunk, |buf| unsafe {
                 func(buf.as_mut_ptr(), buf.len(), 0) as libc::ssize_t

@@ -8,6 +8,8 @@
 #![allow(dead_code)]
 use crate::Error;
 use core::{
+    marker::PhantomData,
+    mem::transmute,
     num::NonZeroU32,
     ptr::NonNull,
     sync::atomic::{fence, AtomicPtr, Ordering},
@@ -84,12 +86,13 @@ pub fn sys_fill_exact(
 // Based off of the DlsymWeak struct in libstd:
 // https://github.com/rust-lang/rust/blob/1.61.0/library/std/src/sys/unix/weak.rs#L84
 // except that the caller must manually cast self.ptr() to a function pointer.
-pub struct Weak {
+pub struct Weak<F> {
     name: &'static str,
     addr: AtomicPtr<c_void>,
+    phantom: PhantomData<F>,
 }
 
-impl Weak {
+impl<F: FromAddr> Weak<F> {
     // A non-null pointer value which indicates we are uninitialized. This
     // constant should ideally not be a valid address of a function pointer.
     // However, if by chance libc::dlsym does return UNINIT, there will not
@@ -99,39 +102,53 @@ impl Weak {
     const UNINIT: *mut c_void = 1 as *mut c_void;
 
     // Construct a binding to a C function with a given name. This function is
-    // unsafe because `name` _must_ be null terminated.
+    // unsafe because `name` _must_ be null terminated, and if the function
+    // exists, it must be of type F.
     pub const unsafe fn new(name: &'static str) -> Self {
         Self {
             name,
             addr: AtomicPtr::new(Self::UNINIT),
+            phantom: PhantomData,
         }
     }
 
-    // Return the address of a function if present at runtime. Otherwise,
-    // return None. Multiple callers can call ptr() concurrently. It will
+    // Return the function if present at runtime. Otherwise, return None.
+    // Multiple callers can call func() concurrently. It will
     // always return _some_ value returned by libc::dlsym. However, the
     // dlsym function may be called multiple times.
-    pub fn ptr(&self) -> Option<NonNull<c_void>> {
+    pub fn func(&self) -> Option<F> {
         // Despite having only a single atomic variable (self.addr), we still
-        // cannot always use Ordering::Relaxed, as we need to make sure a
+        // cannot always quse Ordering::Relaxed, as we need to make sure a
         // successful call to dlsym() is "ordered before" any data read through
         // the returned pointer (which occurs when the function is called).
         // Our implementation mirrors that of the one in libstd, meaning that
         // the use of non-Relaxed operations is probably unnecessary.
-        match self.addr.load(Ordering::Relaxed) {
+        let func = match self.addr.load(Ordering::Relaxed) {
             Self::UNINIT => {
                 let symbol = self.name.as_ptr() as *const _;
                 let addr = unsafe { libc::dlsym(libc::RTLD_DEFAULT, symbol) };
                 // Synchronizes with the Acquire fence below
                 self.addr.store(addr, Ordering::Release);
-                NonNull::new(addr)
+                NonNull::new(addr)?
             }
-            addr => {
-                let func = NonNull::new(addr)?;
-                fence(Ordering::Acquire);
-                Some(func)
-            }
-        }
+            addr => NonNull::new(addr)?,
+        };
+        fence(Ordering::Acquire);
+        Some(unsafe { F::from_addr(func) })
+    }
+}
+
+pub trait FromAddr {
+    unsafe fn from_addr(addr: NonNull<c_void>) -> Self;
+}
+impl<A, B, R> FromAddr for unsafe extern "C" fn(A, B) -> R {
+    unsafe fn from_addr(addr: NonNull<c_void>) -> Self {
+        transmute(addr)
+    }
+}
+impl<A, B, C, R> FromAddr for unsafe extern "C" fn(A, B, C) -> R {
+    unsafe fn from_addr(addr: NonNull<c_void>) -> Self {
+        transmute(addr)
     }
 }
 
