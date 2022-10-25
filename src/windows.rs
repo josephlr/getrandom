@@ -6,12 +6,15 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 #![allow(non_camel_case_types, clippy::upper_case_acronyms)]
-use crate::Error;
+use crate::{util::LazyBool, Error};
 use core::{convert::TryInto, ffi::c_void, mem::MaybeUninit, num::NonZeroU32, ptr};
 
 type NTSTATUS = u32;
 type BCRYPT_ALG_HANDLE = *mut c_void;
 
+const STATUS_INVALID_HANDLE: NTSTATUS = 0xC0000008;
+// TODO: Replace with ptr::invalid_mut(0x00000081) when that is stable.
+const BCRYPT_RNG_ALG_HANDLE: BCRYPT_ALG_HANDLE = 0x00000081 as BCRYPT_ALG_HANDLE;
 const BCRYPT_USE_SYSTEM_PREFERRED_RNG: u32 = 0x00000002;
 
 #[link(name = "bcrypt")]
@@ -24,13 +27,23 @@ extern "system" {
     ) -> NTSTATUS;
 }
 
+fn has_rng_alg_handle() -> bool {
+    let ret = unsafe { BCryptGenRandom(BCRYPT_RNG_ALG_HANDLE, ptr::null_mut(), 0, 0) };
+    ret != STATUS_INVALID_HANDLE
+}
+
 // BCryptGenRandom was introduced in Windows Vista.
 fn bcrypt_random(s: &mut [MaybeUninit<u8>]) -> NTSTATUS {
     let ptr = s.as_mut_ptr() as *mut u8;
     // Will always succeed given the chunking below.
     let len: u32 = s.len().try_into().unwrap();
 
-    unsafe { BCryptGenRandom(ptr::null_mut(), ptr, len, BCRYPT_USE_SYSTEM_PREFERRED_RNG) }
+    static HAS_RNG_ALG_HANDLE: LazyBool = LazyBool::new();
+    if HAS_RNG_ALG_HANDLE.unsync_init(has_rng_alg_handle) {
+        unsafe { BCryptGenRandom(BCRYPT_RNG_ALG_HANDLE, ptr, len, 0) }
+    } else {
+        unsafe { BCryptGenRandom(ptr::null_mut(), ptr, len, BCRYPT_USE_SYSTEM_PREFERRED_RNG) }
+    }
 }
 
 fn status_to_result(ret: NTSTATUS) -> Result<(), Error> {
