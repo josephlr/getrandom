@@ -9,6 +9,8 @@
 use crate::{util::LazyBool, Error};
 use core::{convert::TryInto, ffi::c_void, mem::MaybeUninit, num::NonZeroU32, ptr};
 
+extern crate std;
+
 type NTSTATUS = u32;
 type BCRYPT_ALG_HANDLE = *mut c_void;
 
@@ -29,6 +31,7 @@ extern "system" {
 
 fn has_rng_alg_handle() -> bool {
     let ret = unsafe { BCryptGenRandom(BCRYPT_RNG_ALG_HANDLE, ptr::null_mut(), 0, 0) };
+    std::eprintln!("Got {:#010X} when calling BCryptGenRandom", ret);
     ret != STATUS_INVALID_HANDLE
 }
 
@@ -40,8 +43,10 @@ fn bcrypt_random(s: &mut [MaybeUninit<u8>]) -> NTSTATUS {
 
     static HAS_RNG_ALG_HANDLE: LazyBool = LazyBool::new();
     if HAS_RNG_ALG_HANDLE.unsync_init(has_rng_alg_handle) {
+        std::eprintln!("Calling with Pseudo-handle");
         unsafe { BCryptGenRandom(BCRYPT_RNG_ALG_HANDLE, ptr, len, 0) }
     } else {
+        std::eprintln!("Calling without Pseudo-handle");
         unsafe { BCryptGenRandom(ptr::null_mut(), ptr, len, BCRYPT_USE_SYSTEM_PREFERRED_RNG) }
     }
 }
