@@ -5,34 +5,38 @@
 // <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-
+#![allow(non_camel_case_types, clippy::upper_case_acronyms)]
 use crate::Error;
-use core::{ffi::c_void, mem::MaybeUninit, num::NonZeroU32, ptr};
+use core::{convert::TryInto, ffi::c_void, mem::MaybeUninit, num::NonZeroU32, ptr};
+
+type NTSTATUS = u32;
+type BCRYPT_ALG_HANDLE = *mut c_void;
 
 const BCRYPT_USE_SYSTEM_PREFERRED_RNG: u32 = 0x00000002;
 
 #[link(name = "bcrypt")]
 extern "system" {
     fn BCryptGenRandom(
-        hAlgorithm: *mut c_void,
+        hAlgorithm: BCRYPT_ALG_HANDLE,
         pBuffer: *mut u8,
         cbBuffer: u32,
         dwFlags: u32,
-    ) -> u32;
+    ) -> NTSTATUS;
+}
+
+// BCryptGenRandom was introduced in Windows Vista.
+fn bcrypt_random(s: &mut [MaybeUninit<u8>]) -> NTSTATUS {
+    let ptr = s.as_mut_ptr() as *mut u8;
+    // Will always succeed given the chunking below.
+    let len: u32 = s.len().try_into().unwrap();
+
+    unsafe { BCryptGenRandom(ptr::null_mut(), ptr, len, BCRYPT_USE_SYSTEM_PREFERRED_RNG) }
 }
 
 pub fn getrandom_inner(dest: &mut [MaybeUninit<u8>]) -> Result<(), Error> {
     // Prevent overflow of u32
     for chunk in dest.chunks_mut(u32::max_value() as usize) {
-        // BCryptGenRandom was introduced in Windows Vista
-        let ret = unsafe {
-            BCryptGenRandom(
-                ptr::null_mut(),
-                chunk.as_mut_ptr() as *mut u8,
-                chunk.len() as u32,
-                BCRYPT_USE_SYSTEM_PREFERRED_RNG,
-            )
-        };
+        let ret = bcrypt_random(chunk);
         // NTSTATUS codes use the two highest bits for severity status.
         if ret >> 30 == 0b11 {
             // We zeroize the highest bit, so the error code will reside
