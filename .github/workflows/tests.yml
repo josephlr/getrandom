@@ -21,10 +21,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly # Needed for -Z minimal-versions and doc_cfg
       - name: Install precompiled cargo-deadlinks
         run: |
-          export URL=$(curl -s https://api.github.com/repos/deadlinks/cargo-deadlinks/releases/latest | jq -r '.assets[] | select(.name | contains("cargo-deadlinks-linux")) | .browser_download_url')
-          wget -O /tmp/cargo-deadlinks $URL
-          chmod +x /tmp/cargo-deadlinks
-          mv /tmp/cargo-deadlinks ~/.cargo/bin
+          VERSION=$(curl -sS https://api.github.com/repos/deadlinks/cargo-deadlinks/releases/latest | jq -r '.tag_name')
+          URL="https://github.com/deadlinks/cargo-deadlinks/releases/download/${VERSION}/cargo-deadlinks-linux"
+          curl -sSL $URL -o ~/.cargo/bin/cargo-deadlinks
+          chmod +x ~/.cargo/bin/cargo-deadlinks
+          cargo deadlinks --version
       - uses: Swatinem/rust-cache@v2
       - name: Generate Docs
         env:
@@ -90,11 +91,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-apple-ios
-      - name: Download cargo-dinghy
+      - name: Install precompiled cargo-dinghy
         run: |
-          VERSION=0.6.2
+          VERSION=$(curl -sS https://api.github.com/repos/sonos/dinghy/releases/latest | jq -r '.tag_name')
           URL="https://github.com/sonos/dinghy/releases/download/${VERSION}/cargo-dinghy-macos-${VERSION}.tgz"
-          curl -L $URL | tar -xz --strip-components=1 -C ~/.cargo/bin
+          curl -sSL $URL | tar -xz --strip-components=1 -C ~/.cargo/bin
           cargo dinghy --version
       - name: Setup Simulator
         run: |
@@ -139,10 +140,10 @@ jobs:
       - uses: actions/checkout@v3
       - name: Install precompiled cross
         run: |
-          export URL=$(curl -s https://api.github.com/repos/cross-rs/cross/releases/latest | jq -r '.assets[] | select(.name | contains("x86_64-unknown-linux-gnu.tar.gz")) | .browser_download_url')
-          wget -O /tmp/binaries.tar.gz $URL
-          tar -C /tmp -xzf /tmp/binaries.tar.gz
-          mv /tmp/cross ~/.cargo/bin
+          VERSION=$(curl -sS https://api.github.com/repos/cross-rs/cross/releases/latest | jq -r '.tag_name')
+          URL=https://github.com/cross-rs/cross/releases/download/${VERSION}/cross-x86_64-unknown-linux-gnu.tar.gz
+          curl -sSL $URL | tar -xz -C ~/.cargo/bin
+          cross --version
       - uses: Swatinem/rust-cache@v2
       - name: Test
         run: cross test --no-fail-fast --target=${{ matrix.target }} --features=std
@@ -176,10 +177,10 @@ jobs:
       - uses: actions/checkout@v3
       - name: Install precompiled cross
         run: |
-          export URL=$(curl -s https://api.github.com/repos/cross-rs/cross/releases/latest | jq -r '.assets[] | select(.name | contains("x86_64-unknown-linux-gnu.tar.gz")) | .browser_download_url')
-          wget -O /tmp/binaries.tar.gz $URL
-          tar -C /tmp -xzf /tmp/binaries.tar.gz
-          mv /tmp/cross ~/.cargo/bin
+          VERSION=$(curl -sS https://api.github.com/repos/cross-rs/cross/releases/latest | jq -r '.tag_name')
+          URL=https://github.com/cross-rs/cross/releases/download/${VERSION}/cross-x86_64-unknown-linux-gnu.tar.gz
+          curl -sSL $URL | tar -xz -C ~/.cargo/bin
+          cross --version
       - uses: Swatinem/rust-cache@v2
       - name: Build Tests
         run: cross test --no-run --target=${{ matrix.target }} --features=std
@@ -203,14 +204,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: choco install curl
         if: matrix.os == 'windows-latest'
-      - name: Install wasm-pack
+      - name: Install precompiled wasm-pack
         shell: bash
         run: |
           VERSION=$(curl -sS https://api.github.com/repos/rustwasm/wasm-pack/releases/latest | jq -r '.tag_name')
           URL=https://github.com/rustwasm/wasm-pack/releases/download/${VERSION}/wasm-pack-${VERSION}-${{ matrix.target }}.tar.gz
-          curl -sSL $URL | tar -xz
-          mv wasm-pack-*/wasm-pack ~/.cargo/bin
-          rm -r wasm-pack-*
+          curl -sSL $URL | tar -xz --strip-components=1 -C ~/.cargo/bin
+          wasm-pack --version
       - uses: Swatinem/rust-cache@v2
       - name: Test (Node)
         run: wasm-pack test --node --features=js
@@ -253,10 +253,10 @@ jobs:
           targets: wasm32-wasi
       - name: Install precompiled wasmtime
         run: |
-          export URL=$(curl -s https://api.github.com/repos/bytecodealliance/wasmtime/releases/latest | jq -r '.assets[] | select(.name | contains("x86_64-linux.tar.xz")) | .browser_download_url')
-          wget -O /tmp/binaries.tar.xz $URL
-          tar -C /tmp -xf /tmp/binaries.tar.xz --strip-components=1
-          mv /tmp/wasmtime ~/.cargo/bin
+          VERSION=$(curl -sS https://api.github.com/repos/bytecodealliance/wasmtime/releases/latest | jq -r '.tag_name')
+          URL=https://github.com/bytecodealliance/wasmtime/releases/download/${VERSION}/wasmtime-${VERSION}-x86_64-linux.tar.xz
+          curl -sSL $URL | tar -x --strip-components=1 -C ~/.cargo/bin
+          wasmtime --version
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --target wasm32-wasi
 
