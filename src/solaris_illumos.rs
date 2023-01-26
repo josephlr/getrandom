@@ -18,29 +18,29 @@
 //! libc::dlsym.
 use crate::{
     use_file,
+    util::UninitBytes,
     util_libc::{sys_fill_exact, Weak},
     Error,
 };
-use core::mem::{self, MaybeUninit};
+use core::{
+    ffi::c_void,
+    mem::{self, MaybeUninit},
+};
 
 static GETRANDOM: Weak = unsafe { Weak::new("getrandom\0") };
-type GetRandomFn =
-    unsafe extern "C" fn(*mut libc::c_void, libc::size_t, libc::c_uint) -> libc::ssize_t;
+type GetRandomFn = unsafe extern "C" fn(*mut c_void, libc::size_t, libc::c_uint) -> libc::ssize_t;
 
 pub fn getrandom_inner(dest: &mut [MaybeUninit<u8>]) -> Result<(), Error> {
     if let Some(fptr) = GETRANDOM.ptr() {
         let func: GetRandomFn = unsafe { mem::transmute(fptr) };
+        // A cast is needed for the flags as libc uses the wrong type.
+        let flags = libc::GRND_RANDOM as libc::c_uint;
         // 256 bytes is the lowest common denominator across all the Solaris
         // derived platforms for atomically obtaining random data.
         for chunk in dest.chunks_mut(256) {
             sys_fill_exact(chunk, |buf| unsafe {
-                // A cast is needed for the flags as libc uses the wrong type.
-                func(
-                    buf.as_mut_ptr() as *mut libc::c_void,
-                    buf.len(),
-                    libc::GRND_RANDOM as libc::c_uint,
-                )
-            })?
+                func(buf.as_void_ptr(), buf.len(), flags)
+            })?;
         }
         Ok(())
     } else {

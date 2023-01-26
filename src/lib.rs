@@ -192,7 +192,7 @@
 #[macro_use]
 extern crate cfg_if;
 
-use crate::util::{slice_as_uninit_mut, slice_assume_init_mut};
+use crate::util::{slice_as_uninit_mut, UninitBytes};
 use core::mem::MaybeUninit;
 
 mod error;
@@ -337,5 +337,5 @@ pub fn getrandom_uninit(dest: &mut [MaybeUninit<u8>]) -> Result<&mut [u8], Error
     }
     // SAFETY: `dest` has been fully initialized by `imp::getrandom_inner`
     // since it returned `Ok`.
-    Ok(unsafe { slice_assume_init_mut(dest) })
+    Ok(unsafe { dest.assume_init() })
 }

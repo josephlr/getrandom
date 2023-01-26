@@ -8,12 +8,12 @@
 #![allow(dead_code)]
 use crate::Error;
 use core::{
+    ffi::c_void,
     mem::MaybeUninit,
     num::NonZeroU32,
     ptr::NonNull,
     sync::atomic::{fence, AtomicPtr, Ordering},
 };
-use libc::c_void;
 
 cfg_if! {
     if #[cfg(any(target_os = "netbsd", target_os = "openbsd", target_os = "android"))] {

@@ -7,15 +7,15 @@
 // except according to those terms.
 
 //! Implementation for Fuchsia Zircon
-use crate::Error;
-use core::mem::MaybeUninit;
+use crate::{util::UninitBytes, Error};
+use core::{ffi::c_void, mem::MaybeUninit};
 
 #[link(name = "zircon")]
 extern "C" {
-    fn zx_cprng_draw(buffer: *mut u8, length: usize);
+    fn zx_cprng_draw(buffer: *mut c_void, length: usize);
 }
 
 pub fn getrandom_inner(dest: &mut [MaybeUninit<u8>]) -> Result<(), Error> {
-    unsafe { zx_cprng_draw(dest.as_mut_ptr() as *mut u8, dest.len()) }
+    unsafe { zx_cprng_draw(dest.as_void_ptr(), dest.len()) }
     Ok(())
 }

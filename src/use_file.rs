@@ -8,7 +8,7 @@
 
 //! Implementations that just need to read from a file
 use crate::{
-    util::LazyUsize,
+    util::{LazyUsize, UninitBytes},
     util_libc::{open_readonly, sys_fill_exact},
     Error,
 };
@@ -39,7 +39,7 @@ const FILE_PATH: &str = "/dev/urandom\0";
 pub fn getrandom_inner(dest: &mut [MaybeUninit<u8>]) -> Result<(), Error> {
     let fd = get_rng_fd()?;
     sys_fill_exact(dest, |buf| unsafe {
-        libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len())
+        libc::read(fd, buf.as_void_ptr(), buf.len())
     })
 }
 

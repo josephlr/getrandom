@@ -7,6 +7,7 @@
 // except according to those terms.
 #![allow(dead_code)]
 use core::{
+    ffi::c_void,
     mem::MaybeUninit,
     ptr,
     sync::atomic::{AtomicUsize, Ordering::Relaxed},
@@ -67,19 +68,31 @@ impl LazyBool {
     }
 }
 
-/// Polyfill for `maybe_uninit_slice` feature's
-/// `MaybeUninit::slice_assume_init_mut`. Every element of `slice` must have
-/// been initialized.
-#[inline(always)]
-pub unsafe fn slice_assume_init_mut<T>(slice: &mut [MaybeUninit<T>]) -> &mut [T] {
-    // SAFETY: `MaybeUninit<T>` is guaranteed to be layout-compatible with `T`.
-    &mut *(slice as *mut [MaybeUninit<T>] as *mut [T])
+/// Helper trait for dealing with slices of MaybeUninit<u8>
+pub trait UninitBytes {
+    /// Polyfill for `maybe_uninit_slice` feature's `MaybeUninit::slice_assume_init_mut`.
+    /// Every element of `self` must have been initialized.
+    unsafe fn assume_init(&mut self) -> &mut [u8];
+    fn fill_zero(&mut self) -> &mut [u8];
+    fn as_void_ptr(&mut self) -> *mut c_void;
+    fn as_byte_ptr(&mut self) -> *mut u8;
 }
 
-#[inline]
-pub fn uninit_slice_fill_zero(slice: &mut [MaybeUninit<u8>]) -> &mut [u8] {
-    unsafe { ptr::write_bytes(slice.as_mut_ptr(), 0, slice.len()) };
-    unsafe { slice_assume_init_mut(slice) }
+impl UninitBytes for [MaybeUninit<u8>] {
+    unsafe fn assume_init(&mut self) -> &mut [u8] {
+        // SAFETY: `MaybeUninit<T>` is guaranteed to be layout-compatible with `T`.
+        &mut *(self as *mut [MaybeUninit<u8>] as *mut [u8])
+    }
+    fn fill_zero(&mut self) -> &mut [u8] {
+        unsafe { ptr::write_bytes(self.as_mut_ptr(), 0, self.len()) };
+        unsafe { self.assume_init() }
+    }
+    fn as_void_ptr(&mut self) -> *mut c_void {
+        self.as_mut_ptr() as *mut _
+    }
+    fn as_byte_ptr(&mut self) -> *mut u8 {
+        self.as_mut_ptr() as *mut _
+    }
 }
 
 #[inline(always)]

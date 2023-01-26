@@ -7,7 +7,7 @@
 // except according to those terms.
 
 //! Implementation for ESP-IDF
-use crate::Error;
+use crate::{util::UninitBytes, Error};
 use core::{ffi::c_void, mem::MaybeUninit};
 
 extern "C" {
@@ -20,7 +20,7 @@ pub fn getrandom_inner(dest: &mut [MaybeUninit<u8>]) -> Result<(), Error> {
     // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/random.html
     //
     // However tracking if some of these entropy sources is enabled is way too difficult to implement here
-    unsafe { esp_fill_random(dest.as_mut_ptr().cast(), dest.len()) };
+    unsafe { esp_fill_random(dest.as_void_ptr(), dest.len()) };
 
     Ok(())
 }

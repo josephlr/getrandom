@@ -5,7 +5,7 @@
 // <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-use crate::Error;
+use crate::{util::UninitBytes, Error};
 
 extern crate std;
 use std::{mem::MaybeUninit, thread_local};
@@ -46,7 +46,7 @@ pub(crate) fn getrandom_inner(dest: &mut [MaybeUninit<u8>]) -> Result<(), Error>
                     // have a notion of "uninitialized memory", this is purely
                     // a Rust/C/C++ concept.
                     let res = n.random_fill_sync(unsafe {
-                        Uint8Array::view_mut_raw(chunk.as_mut_ptr() as *mut u8, chunk.len())
+                        Uint8Array::view_mut_raw(chunk.as_byte_ptr(), chunk.len())
                     });
                     if res.is_err() {
                         return Err(Error::NODE_RANDOM_FILL_SYNC);
@@ -66,7 +66,7 @@ pub(crate) fn getrandom_inner(dest: &mut [MaybeUninit<u8>]) -> Result<(), Error>
                     }
 
                     // SAFETY: `sub_buf`'s length is the same length as `chunk`
-                    unsafe { sub_buf.raw_copy_to_ptr(chunk.as_mut_ptr() as *mut u8) };
+                    unsafe { sub_buf.raw_copy_to_ptr(chunk.as_byte_ptr()) };
                 }
             }
         };

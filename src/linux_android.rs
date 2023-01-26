@@ -8,18 +8,18 @@
 
 //! Implementation for Linux / Android
 use crate::{
-    util::LazyBool,
+    util::{LazyBool, UninitBytes},
     util_libc::{last_os_error, sys_fill_exact},
     {use_file, Error},
 };
-use core::mem::MaybeUninit;
+use core::{ffi::c_void, mem::MaybeUninit};
 
 pub fn getrandom_inner(dest: &mut [MaybeUninit<u8>]) -> Result<(), Error> {
     // getrandom(2) was introduced in Linux 3.17
     static HAS_GETRANDOM: LazyBool = LazyBool::new();
     if HAS_GETRANDOM.unsync_init(is_getrandom_available) {
         sys_fill_exact(dest, |buf| unsafe {
-            getrandom(buf.as_mut_ptr() as *mut libc::c_void, buf.len(), 0)
+            getrandom(buf.as_void_ptr(), buf.len(), 0)
         })
     } else {
         use_file::getrandom_inner(dest)
@@ -39,10 +39,6 @@ fn is_getrandom_available() -> bool {
     }
 }
 
-unsafe fn getrandom(
-    buf: *mut libc::c_void,
-    buflen: libc::size_t,
-    flags: libc::c_uint,
-) -> libc::ssize_t {
+unsafe fn getrandom(buf: *mut c_void, buflen: libc::size_t, flags: libc::c_uint) -> libc::ssize_t {
     libc::syscall(libc::SYS_getrandom, buf, buflen, flags) as libc::ssize_t
 }

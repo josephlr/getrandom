@@ -6,7 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use crate::Error;
+use crate::{util::UninitBytes, Error};
 use core::{ffi::c_void, mem::MaybeUninit, num::NonZeroU32, ptr};
 
 const BCRYPT_USE_SYSTEM_PREFERRED_RNG: u32 = 0x00000002;
@@ -28,7 +28,7 @@ pub fn getrandom_inner(dest: &mut [MaybeUninit<u8>]) -> Result<(), Error> {
         let ret = unsafe {
             BCryptGenRandom(
                 ptr::null_mut(),
-                chunk.as_mut_ptr() as *mut u8,
+                chunk.as_byte_ptr(),
                 chunk.len() as u32,
                 BCRYPT_USE_SYSTEM_PREFERRED_RNG,
             )

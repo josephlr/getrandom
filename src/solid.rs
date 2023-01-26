@@ -7,7 +7,7 @@
 // except according to those terms.
 
 //! Implementation for SOLID
-use crate::Error;
+use crate::{util::UninitBytes, Error};
 use core::{mem::MaybeUninit, num::NonZeroU32};
 
 extern "C" {
@@ -15,7 +15,7 @@ extern "C" {
 }
 
 pub fn getrandom_inner(dest: &mut [MaybeUninit<u8>]) -> Result<(), Error> {
-    let ret = unsafe { SOLID_RNG_SampleRandomBytes(dest.as_mut_ptr() as *mut u8, dest.len()) };
+    let ret = unsafe { SOLID_RNG_SampleRandomBytes(dest.as_byte_ptr(), dest.len()) };
     if ret >= 0 {
         Ok(())
     } else {
