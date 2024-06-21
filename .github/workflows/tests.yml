@@ -184,6 +184,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --no-run --target=aarch64-apple-darwin --features=std
       - run: cargo test --no-run --target=aarch64-apple-ios --features=std
+      - run: cargo test --no-run --target=aarch64-apple-tvos -Zbuild-std --features=std
+      - run: cargo test --no-run --target=aarch64-apple-tvos-sim -Zbuild-std --features=std
+      - run: cargo test --no-run --target=aarch64-apple-watchos -Zbuild-std --features=std
       - run: cargo test --no-run --target=aarch64-apple-watchos-sim -Zbuild-std --features=std
 
   cross-link:
@@ -318,9 +321,6 @@ jobs:
           armv7-sony-vita-newlibeabihf,
           riscv32imc-esp-espidf,
           aarch64-unknown-nto-qnx710,
-          # `std` support still in progress. Can be moved up with the other
-          # apple targets after https://github.com/rust-lang/rust/pull/103503
-          aarch64-apple-tvos,
         ]
         include:
           - target: aarch64-unknown-nto-qnx710
