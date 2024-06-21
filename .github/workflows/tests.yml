@@ -172,8 +172,24 @@ jobs:
       - name: Test
         run: cross test --no-fail-fast --target=${{ matrix.target }} --features=std
 
-  macos-link:
-    name: macOS ARM64 Build/Link
+  macos-link-arm64:
+    name: macOS ARM64 Build/Link (arm64 host)
+    # visionOS requires Xcode 15.2+, which is only available on the arm64 runners.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: aarch64-apple-darwin, aarch64-apple-ios
+          components: rust-src
+      - uses: Swatinem/rust-cache@v2
+      # visionOS requires Xcode 15.2+, GitHub Actions defaults to an older version.
+      - run: sudo xcode-select -switch /Applications/Xcode_15.2.app
+      - run: cargo test --no-run --target=aarch64-apple-visionos -Zbuild-std --features=std
+      - run: cargo test --no-run --target=aarch64-apple-visionos-sim -Zbuild-std --features=std
+
+  macos-link-x86_64:
+    name: macOS ARM64 Build/Link (x86_64 host)
     runs-on: macos-12
     steps:
       - uses: actions/checkout@v4
